@@ -29,7 +29,12 @@ Task("Test")
 .IsDependentOn("Compile")
 .Does(() => 
     {
-        DotNetCoreTest(Paths.SolutionFile.FullPath);
+        DotNetCoreTest(
+            Paths.SolutionFile.FullPath,
+            new DotNetCoreTestSettings{
+                Logger = "trx",
+                ResultsDirectory = Paths.TestResultDirectory
+            });
     }
 );
 
@@ -154,6 +159,39 @@ Task("Deploy-Octopus")
         });
 });
 
+Task("Set-Build-Number")
+    .WithCriteria(() => BuildSystem.IsRunningOnAzurePipelinesHosted || BuildSystem.IsRunningOnAzurePipelines)
+    .Does<PackageMetadata>(package => 
+{
+    var buildNumber = TFBuild.Environment.Build.Number;
+    TFBuild.Commands.UpdateBuildNumber($"{package.Version}+{buildNumber}");
+});
 
+Task("Publish-Build-Artifact")
+    .WithCriteria(() => BuildSystem.IsRunningOnAzurePipelinesHosted || BuildSystem.IsRunningOnAzurePipelines)
+    .IsDependentOn("Package-Zip")
+    .Does<PackageMetadata>(package => TFBuild.Commands.UploadArtifactDirectory(package.OutputDirectory));
+
+Task("Publish-Test-Results")
+    .WithCriteria(() => BuildSystem.IsRunningOnAzurePipelinesHosted || BuildSystem.IsRunningOnAzurePipelines)
+    .IsDependentOn("Test")
+    .Does(() => {
+        var testResultData = new TFBuildPublishTestResultsData{
+            TestRunner = TFTestRunnerType.VSTest,
+            TestResultsFiles = GetFiles(Paths.TestResultDirectory + "/*.trx").ToList()
+        };
+        TFBuild.Commands.PublishTestResults(testResultData);
+    });
+
+Task("Build-CI")
+    .IsDependentOn("Compile")
+    .IsDependentOn("Test")
+    .IsDependentOn("Build-FrontEnd")
+    .IsDependentOn("Version")
+    .IsDependentOn("Package-Zip")
+    .IsDependentOn("Set-Build-Number")
+    .IsDependentOn("Publish-Build-Artifact")
+    .IsDependentOn("Publish-Test-Results")
+    ;
 
 RunTarget(task);

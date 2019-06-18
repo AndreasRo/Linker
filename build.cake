@@ -160,7 +160,7 @@ Task("Deploy-Octopus")
 });
 
 Task("Set-Build-Number")
-    .WithCriteria(() => BuildSystem.IsRunningOnAzurePipelinesHosted || BuildSystem.IsRunningOnAzurePipelines)
+    .WithCriteria(BuildSystem.IsRunningOnAzurePipelinesHosted)
     .Does<PackageMetadata>(package => 
 {
     var buildNumber = TFBuild.Environment.Build.Number;
@@ -168,12 +168,12 @@ Task("Set-Build-Number")
 });
 
 Task("Publish-Build-Artifact")
-    .WithCriteria(() => BuildSystem.IsRunningOnAzurePipelinesHosted || BuildSystem.IsRunningOnAzurePipelines)
+    .WithCriteria(BuildSystem.IsRunningOnAzurePipelinesHosted)
     .IsDependentOn("Package-Zip")
     .Does<PackageMetadata>(package => TFBuild.Commands.UploadArtifactDirectory(package.OutputDirectory));
 
 Task("Publish-Test-Results")
-    .WithCriteria(() => BuildSystem.IsRunningOnAzurePipelinesHosted || BuildSystem.IsRunningOnAzurePipelines)
+    .WithCriteria(BuildSystem.IsRunningOnAzurePipelinesHosted)
     .IsDependentOn("Test")
     .Does(() => {
         var testResultData = new TFBuildPublishTestResultsData{
